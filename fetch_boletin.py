@@ -5,17 +5,24 @@ from requests import request, utils
 from collections import namedtuple
 from json import dumps
 from datetime import date
+from yagmail import SMTP
 
 BASE_URL = 'https://www.boletinoficial.gob.ar'
 
+# EMAIL_USERNAME = # username
+# EMAIL_PASSWORD = # password
 class BoletinFetcher:
-    def __init__(self, search_string, input_date):
+    def __init__(self, search_string, input_date, email, address, verbose):
         input_date = input_date or date.today().isoformat()
         search_string = search_string or "Policia Seguridad Aeroportuaria"
         self.search_string = search_string.replace(' ', '+')
         self.date_from = date.fromisoformat(input_date)
         self.date_until = date.fromisoformat(input_date)
         self.url = 'https://www.boletinoficial.gob.ar/busquedaAvanzada/realizarBusqueda'
+        self.mailer = SMTP(EMAIL_USERNAME, EMAIL_PASSWORD)
+        self.email = email
+        self.address = address
+        self.verbose = verbose
 
     Response = namedtuple('Response', ['code', 'html', 'count'])
 
@@ -78,22 +85,34 @@ class BoletinFetcher:
     def clean_text(self, text):
         return text.strip().replace(u'\xa0', u' ')
 
+    def send_email(self, contents):
+        self.mailer.send(to='test@email', subject='Test', contents=contents)
+
     def run(self):
         response = self.parse_response(
             request("POST", self.url, headers=self.headers, data=self.payload()))
         soup = BeautifulSoup(response.html, 'html.parser')
 
         articles = soup.findAll('p', {'class': 'item'})
+        content = f''
 
         for article in articles:
-            print(f'Title: {self.clean_text(article.text)}')
-            print(f"Link: {BASE_URL+article.find_parent('a').get('href')}")
+            content = content+(f'Title: {self.clean_text(article.text)}\n'
+                    f"Link: {BASE_URL+article.find_parent('a').get('href')}\n")
 
+        if self.verbose:
+            print(content)
+
+        if self.email:
+            self.send_email(content)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--search', help='Search string in quotes, defaults to "Policia Seguridad Aeroportuaria"')
     parser.add_argument('-d', '--date', help='Date to search in iso format, yyyy-mm-dd, defaults to today\'s date')
+    parser.add_argument('-m', '--email', help='Email the results to the specified address, defaults to credentials', action='store_true')
+    parser.add_argument('-a', '--address', help='Address to send the email with the results, if exists, assumes -m flag')
+    parser.add_argument('-v', '--verbose', help='Print obtained information to stdout', action='store_true')
     args = parser.parse_args()
-    command = BoletinFetcher(search_string=args.search, input_date=args.date)
+    command = BoletinFetcher(search_string=args.search, input_date=args.date, email=args.email, address=args.address, verbose=args.verbose)
     command.run()
