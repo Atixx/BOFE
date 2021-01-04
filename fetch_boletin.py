@@ -9,15 +9,22 @@ from yagmail import SMTP
 
 BASE_URL = 'https://www.boletinoficial.gob.ar'
 
-# EMAIL_USERNAME = # username
-# EMAIL_PASSWORD = # password
+EMAIL_USERNAME = ''# username
+EMAIL_PASSWORD = ''# password
+DEFAULT_EMAIL=  '' # send to email
+
 class BoletinFetcher:
-    def __init__(self, search_string, input_date, email, address, verbose):
-        input_date = input_date or date.today().isoformat()
+    def __init__(self,
+                 search_string,
+                 input_date,
+                 email,
+                 verbose,
+                 address=DEFAULT_EMAIL):
+        self.input_date = input_date or date.today().isoformat()
         search_string = search_string or "Policia Seguridad Aeroportuaria"
         self.search_string = search_string.replace(' ', '+')
-        self.date_from = date.fromisoformat(input_date)
-        self.date_until = date.fromisoformat(input_date)
+        self.date_from = date.fromisoformat(self.input_date)
+        self.date_until = date.fromisoformat(self.input_date)
         self.url = 'https://www.boletinoficial.gob.ar/busquedaAvanzada/realizarBusqueda'
         self.mailer = SMTP(EMAIL_USERNAME, EMAIL_PASSWORD)
         self.email = email
@@ -85,8 +92,8 @@ class BoletinFetcher:
     def clean_text(self, text):
         return text.strip().replace(u'\xa0', u' ')
 
-    def send_email(self, contents):
-        self.mailer.send(to='test@email', subject='Test', contents=contents)
+    def send_email(self, contents, to, subject='Boletin oficial'):
+        self.mailer.send(to, subject, contents=contents)
 
     def run(self):
         response = self.parse_response(
@@ -103,8 +110,8 @@ class BoletinFetcher:
         if self.verbose:
             print(content)
 
-        if self.email:
-            self.send_email(content)
+        if (self.email and content != ''):
+            self.send_email(content, self.address, subject=f'Boletin oficial {self.input_date}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
